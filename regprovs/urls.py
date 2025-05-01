@@ -1,5 +1,5 @@
 from rest_framework import routers as RT
-from .api import ProveedorViewSet as PVS, Prod_ProveedorViewSet as PPVS, TipoViewSet as TVS, MarcaViewSet as MVS
+from .api import PViewSet as PVS, PPViewSet as PPVS, TViewSet as TVS, MViewSet as MVS
 
 RT = RT.DefaultRouter()
 
