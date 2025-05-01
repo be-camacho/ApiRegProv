@@ -15,7 +15,7 @@ class Prod_Proveedor(models.Model):
     id_producto = models.AutoField(primary_key=True)
     nombre_producto = models.CharField(max_length=100)
     descripcion = models.TextField()
-    precio = models.FloatField()
+    precio = models.IntegerField()
     id_proveedor = models.ForeignKey(Proveedor, on_delete=models.CASCADE)
     id_marca = models.ForeignKey('Marca', on_delete=models.CASCADE)
     id_tipo = models.ForeignKey('Tipo', on_delete=models.CASCADE)
