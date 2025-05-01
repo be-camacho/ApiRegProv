@@ -7,7 +7,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
@@ -21,25 +20,33 @@ jobs:
     - name: Connect to EC2 and deploy
       run: |
         ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT || 22 }} ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
-          cd /home/ec2-user/ApiRegProv || (git clone https://github.com/be-camacho/ApiRegProv.git /home/ec2-user/ApiRegProv && cd /home/ec2-user/ApiRegProv)
+          # 1. Actualizar código
+          cd /home/ec2-user/ApiRegProv
           git pull origin main
           
-          # 1. Detener y eliminar todos los contenedores relacionados
-          sudo docker ps -a -q --filter ancestor=apiprovs | xargs -r sudo docker stop | xargs -r sudo docker rm
+          # 2. Detener y eliminar contenedores existentes
+          sudo docker ps -aq --filter name=apiprovs_container | xargs -r sudo docker stop | xargs -r sudo docker rm
           
-          # 2. Liberar el puerto 80 de cualquier proceso
-          sudo fuser -k 80/tcp || true
+          # 3. Liberar puerto 80 completamente
+          sudo lsof -ti :80 | xargs -r sudo kill -9
+          sudo ss -tulnp | grep ':80' | awk '{print $7}' | cut -d\"=\" -f2 | xargs -r sudo kill -9
           
-          # 3. Limpiar recursos de Docker no utilizados
-          sudo docker system prune -f
+          # 4. Limpiar redes Docker huérfanas
+          sudo docker network prune -f
           
-          # 4. Reconstruir la imagen
+          # 5. Reconstruir imagen
           sudo docker build -t apiprovs .
           
-          # 5. Ejecutar el contenedor con reinicio automático
+          # 6. Ejecutar con política de reinicio y nombre específico
           sudo docker run -d \
+            --name apiprovs_container \
             --restart unless-stopped \
             -p 80:8000 \
-            --name apiprovs_container \
+            -v /etc/ssl:/etc/ssl \
             apiprovs
+          
+          # 7. Verificar despliegue
+          sleep 10
+          sudo docker ps
+          curl -I http://localhost:80
         "
