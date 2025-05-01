@@ -24,29 +24,38 @@ jobs:
           cd /home/ec2-user/ApiRegProv
           git pull origin main
           
-          # 2. Detener y eliminar contenedores existentes
-          sudo docker ps -aq --filter name=apiprovs_container | xargs -r sudo docker stop | xargs -r sudo docker rm
+          # 2. Detener y eliminar TODOS los contenedores Docker
+          sudo docker stop $(sudo docker ps -aq) || true
+          sudo docker rm $(sudo docker ps -aq) || true
           
-          # 3. Liberar puerto 80 completamente
-          sudo lsof -ti :80 | xargs -r sudo kill -9
-          sudo ss -tulnp | grep ':80' | awk '{print $7}' | cut -d\"=\" -f2 | xargs -r sudo kill -9
+          # 3. Eliminar TODAS las imágenes Docker
+          sudo docker rmi $(sudo docker images -q) -f || true
           
-          # 4. Limpiar redes Docker huérfanas
-          sudo docker network prune -f
+          # 4. Limpieza profunda de Docker
+          sudo docker system prune -af --volumes
           
-          # 5. Reconstruir imagen
-          sudo docker build -t apiprovs .
+          # 5. Forzar liberación del puerto 80
+          sudo pkill -f 'docker-proxy' || true
+          sudo lsof -ti :80 | xargs -r sudo kill -9 || true
+          sudo ss -tulnp | grep ':80' | awk '{print $7}' | cut -d'=' -f2 | xargs -r sudo kill -9 || true
           
-          # 6. Ejecutar con política de reinicio y nombre específico
+          # 6. Reconstruir imagen sin caché
+          sudo docker build --no-cache -t apiprovs .
+          
+          # 7. Ejecutar nuevo contenedor con nombre específico
           sudo docker run -d \
             --name apiprovs_container \
             --restart unless-stopped \
             -p 80:8000 \
-            -v /etc/ssl:/etc/ssl \
             apiprovs
           
-          # 7. Verificar despliegue
-          sleep 10
-          sudo docker ps
-          curl -I http://localhost:80
+          # 8. Verificación exhaustiva
+          echo '--- Contenedores en ejecución ---'
+          sudo docker ps -a
+          echo '--- Imágenes disponibles ---'
+          sudo docker images
+          echo '--- Puerto 80 en uso ---'
+          sudo lsof -i :80 || echo 'Ningún proceso usando puerto 80'
+          echo '--- Intento de conexión ---'
+          curl -v http://localhost:80 || echo 'Conexión fallida'
         "
