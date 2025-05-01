@@ -21,41 +21,39 @@ jobs:
       run: |
         ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT || 22 }} ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
           # 1. Actualizar código
-          cd /home/ec2-user/ApiRegProv
+          cd /home/ec2-user/ApiRegProv || (git clone https://github.com/be-camacho/ApiRegProv.git /home/ec2-user/ApiRegProv && cd /home/ec2-user/ApiRegProv)
           git pull origin main
           
-          # 2. Detener y eliminar TODOS los contenedores Docker
-          sudo docker stop $(sudo docker ps -aq) || true
-          sudo docker rm $(sudo docker ps -aq) || true
+          # 2. Detener y eliminar contenedores existentes (solo si existen)
+          if [ \"$(sudo docker ps -aq)\" ]; then
+            sudo docker stop $(sudo docker ps -aq)
+            sudo docker rm $(sudo docker ps -aq)
+          fi
           
-          # 3. Eliminar TODAS las imágenes Docker
-          sudo docker rmi $(sudo docker images -q) -f || true
+          # 3. Eliminar imágenes existentes (solo si existen)
+          if [ \"$(sudo docker images -q apiprovs)\" ]; then
+            sudo docker rmi $(sudo docker images -q apiprovs) -f
+          fi
           
-          # 4. Limpieza profunda de Docker
-          sudo docker system prune -af --volumes
+          # 4. Limpieza de Docker
+          sudo docker system prune -f
           
-          # 5. Forzar liberación del puerto 80
-          sudo pkill -f 'docker-proxy' || true
+          # 5. Liberar puerto 80 si está en uso
           sudo lsof -ti :80 | xargs -r sudo kill -9 || true
-          sudo ss -tulnp | grep ':80' | awk '{print $7}' | cut -d'=' -f2 | xargs -r sudo kill -9 || true
           
           # 6. Reconstruir imagen sin caché
           sudo docker build --no-cache -t apiprovs .
           
-          # 7. Ejecutar nuevo contenedor con nombre específico
+          # 7. Ejecutar nuevo contenedor
           sudo docker run -d \
             --name apiprovs_container \
             --restart unless-stopped \
             -p 80:8000 \
             apiprovs
           
-          # 8. Verificación exhaustiva
-          echo '--- Contenedores en ejecución ---'
-          sudo docker ps -a
-          echo '--- Imágenes disponibles ---'
-          sudo docker images
-          echo '--- Puerto 80 en uso ---'
-          sudo lsof -i :80 || echo 'Ningún proceso usando puerto 80'
+          # 8. Verificación
+          echo '--- Contenedores activos ---'
+          sudo docker ps
           echo '--- Intento de conexión ---'
-          curl -v http://localhost:80 || echo 'Conexión fallida'
+          curl -I http://localhost:80 || echo 'La aplicación no responde aún'
         "
