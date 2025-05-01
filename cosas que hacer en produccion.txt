@@ -1,0 +1,12 @@
+añadir permisos para los viewset de api.py 
+
+
+
+        "id_proveedor": 1,
+        "nombre": "Andy",
+        "apellido": "Paul",
+        "rut": 18345678,
+        "dv": "5",
+        "nombre_empresa": "CORSAIR INTERNATIONAL",
+        "rut_empresa": 555555555,
+        "puntuacion": 5.0

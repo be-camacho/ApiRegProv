@@ -5,9 +5,12 @@ class Proveedor(models.Model):
     id_proveedor = models.AutoField(primary_key=True)
     nombre = models.CharField(max_length=100)
     apellido = models.CharField(max_length=100)
+    correo = models.EmailField(max_length=100)
+    telefono = models.CharField(max_length=15)
     rut = models.IntegerField()
     dv = models.CharField(max_length=1)
     nombre_empresa = models.CharField(max_length=100)
+    pais_empresa = models.CharField(max_length=100)
     rut_empresa = models.IntegerField()
     puntuacion = models.FloatField()
 
