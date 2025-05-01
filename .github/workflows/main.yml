@@ -23,8 +23,11 @@ jobs:
         ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT || 22 }} ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
           cd /home/ec2-user/ApiRegProv || (git clone https://github.com/be-camacho/ApiRegProv /home/ec2-user/ApiRegProv && cd /home/ec2-user/ApiRegProv)
           git pull origin main
-          sudo docker stop $(sudo docker ps -q --filter ancestor=apiprovs) || true
-          sudo docker rm $(sudo docker ps -aq --filter ancestor=apiprovs) || true
+          CONTAINER_ID=$(sudo docker ps -q --filter ancestor=apiprovs)
+          if [ ! -z \"$CONTAINER_ID\" ]; then
+            sudo docker stop $CONTAINER_ID
+            sudo docker rm $CONTAINER_ID
+          fi
           sudo docker build -t apiprovs .
           sudo docker run -d -p 80:8000 apiprovs
         "
