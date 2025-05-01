@@ -21,13 +21,25 @@ jobs:
     - name: Connect to EC2 and deploy
       run: |
         ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT || 22 }} ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
-          cd /home/ec2-user/ApiRegProv || (git clone https://github.com/be-camacho/ApiRegProv /home/ec2-user/ApiRegProv && cd /home/ec2-user/ApiRegProv)
+          cd /home/ec2-user/ApiRegProv || (git clone https://github.com/be-camacho/ApiRegProv.git /home/ec2-user/ApiRegProv && cd /home/ec2-user/ApiRegProv)
           git pull origin main
-          CONTAINER_ID=$(sudo docker ps -q --filter ancestor=apiprovs)
-          if [ ! -z \"$CONTAINER_ID\" ]; then
-            sudo docker stop $CONTAINER_ID
-            sudo docker rm $CONTAINER_ID
-          fi
+          
+          # 1. Detener y eliminar todos los contenedores relacionados
+          sudo docker ps -a -q --filter ancestor=apiprovs | xargs -r sudo docker stop | xargs -r sudo docker rm
+          
+          # 2. Liberar el puerto 80 de cualquier proceso
+          sudo fuser -k 80/tcp || true
+          
+          # 3. Limpiar recursos de Docker no utilizados
+          sudo docker system prune -f
+          
+          # 4. Reconstruir la imagen
           sudo docker build -t apiprovs .
-          sudo docker run -d -p 80:8000 apiprovs
+          
+          # 5. Ejecutar el contenedor con reinicio automático
+          sudo docker run -d \
+            --restart unless-stopped \
+            -p 80:8000 \
+            --name apiprovs_container \
+            apiprovs
         "
