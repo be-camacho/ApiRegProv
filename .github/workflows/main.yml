@@ -8,50 +8,65 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Create .env file dynamically
+    - name: Checkout code
+      uses: actions/checkout@v3
+    - name: Create .env file
         run: |
-          cat <<EOF > .env
-          DB_NAME=${{ secrets.DB_NAME }}
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          DB_HOST=${{ secrets.DB_HOST }}
-          DB_PORT=${{ secrets.DB_PORT }}
-          EOF
+          echo "DB_NAME=${{ secrets.DB_NAME }}" > .env
+          echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+          echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env
+          echo "DB_PORT=${{ secrets.DB_PORT }}" >> .env
+          
+    - name: Install SSH key
+      uses: shimataro/ssh-key-action@v2
+      with:
+        key: ${{ secrets.EC2_SSH_KEY }}
+        known_hosts: 'just-a-placeholder-so-we-dont-get-errors'
 
-      - name: Install SSH key
-        uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ secrets.EC2_SSH_KEY }}
-          known_hosts: "just-a-placeholder"
-
-      - name: Deploy via SSH
-        run: |
-          # Copiar el .env generado al servidor
-          scp -o StrictHostKeyChecking=no -P ${ { secrets.EC2_PORT || 22 } } .env ${ { secrets.EC2_USER } }@${ { secrets.EC2_HOST } }:/home/ec2-user/ApiRegProv/
-
-          # Comandos SSH para el despliegue
-          ssh -o StrictHostKeyChecking=no -p ${ { secrets.EC2_PORT || 22 } } ${ { secrets.EC2_USER } }@${ { secrets.EC2_HOST } } "
-            cd /home/ec2-user/ApiRegProv
-
-            # Limpieza previa
+    - name: Connect to EC2 and deploy
+      run: |
+        ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT || 22 }} ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
+          # 1. Actualizar código
+          cd /home/ec2-user/ApiRegProv || (git clone https://github.com/be-camacho/ApiRegProv.git /home/ec2-user/ApiRegProv && cd /home/ec2-user/ApiRegProv)
+          git pull origin main
+          
+          # 2. Detener y eliminar contenedores existentes específicos primero
+          if sudo docker ps -a --filter 'name=apiprovs_container' --format '{{.ID}}' | grep -q .; then
             sudo docker stop apiprovs_container || true
             sudo docker rm -f apiprovs_container || true
-            sudo docker rmi -f apiprovs || true
-            sudo docker system prune -f
-
-            # Reconstruir y ejecutar
-            sudo docker build --no-cache -t apiprovs .
-            sudo docker run -d \
-              --name apiprovs_container \
-              --restart unless-stopped \
-              -p 80:8000 \
-              --env-file .env \
-              apiprovs
-
-            # Verificación
-            sleep 15
-            curl -I http://localhost || echo 'App is starting...'
-          "
+          fi
+          
+          # 3. Eliminar contenedores detenidos
+          sudo docker container prune -f
+          
+          # 4. Eliminar imágenes existentes específicas
+          if sudo docker images -q apiprovs | grep -q .; then
+            sudo docker rmi -f $(sudo docker images -q apiprovs) || true
+          fi
+          
+          # 5. Limpieza de Docker
+          sudo docker system prune -f
+          
+          # 6. Liberar puerto 80 si está en uso
+          sudo lsof -ti :80 | xargs -r sudo kill -9 || true
+          
+          # 7. Reconstruir imagen sin caché
+          sudo docker build --no-cache -t apiprovs .
+          
+          # 8. Ejecutar nuevo contenedor con reinicio automático
+          sudo docker run -d \
+            --name apiprovs_container \
+            --restart unless-stopped \
+            -p 80:8000 \
+            apiprovs
+          
+          # Esperar unos segundos para que la aplicación inicie
+          sleep 15
+          
+          # 9. Verificación
+          echo '--- Contenedores activos ---'
+          sudo docker ps
+          echo '--- Intento de conexión ---'
+          curl -I http://localhost || echo 'La aplicación no responde aún'
+        "
