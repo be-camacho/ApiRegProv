@@ -10,63 +10,79 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
-    - name: Create .env file
-        run: |
-          echo "DB_NAME=${{ secrets.DB_NAME }}" > .env
-          echo "DB_USER=${{ secrets.DB_USER }}" >> .env
-          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
-          echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env
-          echo "DB_PORT=${{ secrets.DB_PORT }}" >> .env
-          
+
     - name: Install SSH key
       uses: shimataro/ssh-key-action@v2
       with:
         key: ${{ secrets.EC2_SSH_KEY }}
-        known_hosts: 'just-a-placeholder-so-we-dont-get-errors'
+        known_hosts: ${{ secrets.KNOWN_HOSTS || 'just-a-placeholder-so-we-dont-get-errors' }}
 
     - name: Connect to EC2 and deploy
+      timeout-minutes: 10
       run: |
-        ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT || 22 }} ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
-          # 1. Actualizar código
-          cd /home/ec2-user/ApiRegProv || (git clone https://github.com/be-camacho/ApiRegProv.git /home/ec2-user/ApiRegProv && cd /home/ec2-user/ApiRegProv)
-          git pull origin main
-          
-          # 2. Detener y eliminar contenedores existentes específicos primero
-          if sudo docker ps -a --filter 'name=apiprovs_container' --format '{{.ID}}' | grep -q .; then
-            sudo docker stop apiprovs_container || true
-            sudo docker rm -f apiprovs_container || true
+        set -e
+        
+        SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=30 -p ${{ secrets.EC2_PORT || 22 }}"
+        
+        # Generar el contenido del .env con los secrets
+        ENV_CONTENT=$(cat << EOF
+        DB_NAME=${{ secrets.DB_NAME }}
+        DB_USER=${{ secrets.DB_USER }}
+        DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+        DB_HOST=${{ secrets.DB_HOST }}
+        DB_PORT=${{ secrets.DB_PORT }}
+        EOF
+        )
+        
+        DEPLOY_SCRIPT=$(cat << 'EOF'
+        # Configuración del proyecto
+        REPO_DIR="/home/ec2-user/ApiRegProv"
+        if [ ! -d "$REPO_DIR" ]; then
+          git clone https://${{ secrets.GH_TOKEN }}@github.com/be-camacho/ApiRegProv.git "$REPO_DIR"
+        fi
+        cd "$REPO_DIR"
+        git config --global --add safe.directory "$REPO_DIR"
+        git pull origin main
+        
+        # Crear archivo .env
+        cat > .env << 'ENV_EOF'
+        $ENV_CONTENT
+        ENV_EOF
+        
+        # Resto de tu script de despliegue Docker...
+        docker system prune -af --filter "until=24h" || true
+        
+        if docker inspect apiprovs_container >/dev/null 2>&1; then
+          docker stop apiprovs_container || true
+          docker rm -f apiprovs_container || true
+        fi
+        
+        docker build --pull -t apiprovs .
+        
+        docker run -d \
+          --name apiprovs_container \
+          --restart unless-stopped \
+          -p 80:8000 \
+          --env-file .env \
+          -e NODE_ENV=production \
+          --log-driver json-file \
+          --log-opt max-size=10m \
+          --log-opt max-file=3 \
+          apiprovs
+        
+        # Verificación
+        for i in {1..10}; do
+          if curl -fsS http://localhost/health-check >/dev/null; then
+            echo "Aplicación está respondiendo correctamente"
+            break
           fi
-          
-          # 3. Eliminar contenedores detenidos
-          sudo docker container prune -f
-          
-          # 4. Eliminar imágenes existentes específicas
-          if sudo docker images -q apiprovs | grep -q .; then
-            sudo docker rmi -f $(sudo docker images -q apiprovs) || true
-          fi
-          
-          # 5. Limpieza de Docker
-          sudo docker system prune -f
-          
-          # 6. Liberar puerto 80 si está en uso
-          sudo lsof -ti :80 | xargs -r sudo kill -9 || true
-          
-          # 7. Reconstruir imagen sin caché
-          sudo docker build --no-cache -t apiprovs .
-          
-          # 8. Ejecutar nuevo contenedor con reinicio automático
-          sudo docker run -d \
-            --name apiprovs_container \
-            --restart unless-stopped \
-            -p 80:8000 \
-            apiprovs
-          
-          # Esperar unos segundos para que la aplicación inicie
-          sleep 15
-          
-          # 9. Verificación
-          echo '--- Contenedores activos ---'
-          sudo docker ps
-          echo '--- Intento de conexión ---'
-          curl -I http://localhost || echo 'La aplicación no responde aún'
-        "
+          sleep 5
+        done
+        
+        echo '--- Contenedores activos ---'
+        docker ps
+        EOF
+        )
+        
+        # Pasar el contenido del .env y ejecutar el script
+        ssh $SSH_OPTS ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "$DEPLOY_SCRIPT"
