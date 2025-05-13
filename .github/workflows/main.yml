@@ -19,60 +19,56 @@ jobs:
 
     - name: Connect to EC2 and deploy
       run: |
-        ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT || 22 }} ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
-          # 1. Actualizar código
-          cd /home/ec2-user/ApiRegProv || (git clone https://github.com/be-camacho/ApiRegProv.git /home/ec2-user/ApiRegProv && cd /home/ec2-user/ApiRegProv)
-          git pull origin main
-          
-          # 2. Crear archivo .env con los secrets
-          cat > .env << 'EOF'
-          DB_NAME=${{ secrets.DB_NAME }}
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          DB_HOST=${{ secrets.DB_HOST }}
-          DB_PORT=${{ secrets.DB_PORT }}
-          EOF
-          
-          # 3. Asegurar permisos del .env
-          chmod 600 .env
-          
-          # 4. Detener y eliminar contenedores existentes específicos primero
-          if sudo docker ps -a --filter 'name=apiprovs_container' --format '{{.ID}}' | grep -q .; then
-            sudo docker stop apiprovs_container || true
-            sudo docker rm -f apiprovs_container || true
-          fi
-          
-          # 5. Eliminar contenedores detenidos
-          sudo docker container prune -f
-          
-          # 6. Eliminar imágenes existentes específicas
-          if sudo docker images -q apiprovs | grep -q .; then
-            sudo docker rmi -f $(sudo docker images -q apiprovs) || true
-          fi
-          
-          # 7. Limpieza de Docker
-          sudo docker system prune -f
-          
-          # 8. Liberar puerto 80 si está en uso
-          sudo lsof -ti :80 | xargs -r sudo kill -9 || true
-          
-          # 9. Reconstruir imagen sin caché
-          sudo docker build --no-cache -t apiprovs .
-          
-          # 10. Ejecutar nuevo contenedor con reinicio automático
-          sudo docker run -d \
-            --name apiprovs_container \
-            --restart unless-stopped \
-            -p 80:8000 \
-            --env-file .env \
-            apiprovs
-          
-          # Esperar unos segundos para que la aplicación inicie
-          sleep 15
-          
-          # 11. Verificación
-          echo '--- Contenedores activos ---'
-          sudo docker ps
-          echo '--- Intento de conexión ---'
-          curl -I http://localhost || echo 'La aplicación no responde aún'
-        "
+        ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT || 22 }} ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} /bin/bash << 'EOSSH'
+        # 1. Asegurar directorio del proyecto
+        if [ ! -d "/home/ec2-user/ApiRegProv" ]; then
+          git clone https://github.com/be-camacho/ApiRegProv.git /home/ec2-user/ApiRegProv
+        fi
+        cd /home/ec2-user/ApiRegProv
+        
+        # 2. Resetear cambios locales y actualizar
+        git reset --hard HEAD
+        git clean -fd
+        git pull origin main
+        
+        # 3. Crear .env seguro
+        {
+          echo "DB_NAME=$DB_NAME"
+          echo "DB_USER=$DB_USER"
+          echo "DB_PASSWORD=$DB_PASSWORD"
+          echo "DB_HOST=$DB_HOST"
+          echo "DB_PORT=$DB_PORT"
+        } > .env
+        chmod 600 .env
+        
+        # 4. Limpieza Docker
+        sudo docker stop apiprovs_container || true
+        sudo docker rm -f apiprovs_container || true
+        sudo docker rmi -f apiprovs || true
+        sudo docker system prune -af
+        
+        # 5. Liberar puerto 80
+        sudo lsof -ti :80 | xargs -r sudo kill -9 || true
+        
+        # 6. Reconstruir y ejecutar
+        sudo docker build --no-cache -t apiprovs .
+        sudo docker run -d \
+          --name apiprovs_container \
+          --restart unless-stopped \
+          -p 80:8000 \
+          --env-file .env \
+          apiprovs
+        
+        # 7. Verificación
+        sleep 15
+        echo '--- Contenedores activos ---'
+        sudo docker ps
+        echo '--- Intento de conexión ---'
+        curl -I http://localhost || echo 'La aplicación no responde aún'
+EOSSH
+      env:
+        DB_NAME: ${{ secrets.DB_NAME }}
+        DB_USER: ${{ secrets.DB_USER }}
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        DB_HOST: ${{ secrets.DB_HOST }}
+        DB_PORT: ${{ secrets.DB_PORT }}
