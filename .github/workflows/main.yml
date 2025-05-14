@@ -1,29 +1,38 @@
-- name: Connect to EC2 and deploy
-  run: |
-    ssh -o StrictHostKeyChecking=no \
-        -p "${{ secrets.EC2_PORT || 22 }}" \
-        "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
-        /bin/bash << 'EOSSH'
-    # 1. Actualizar código
-    cd /home/ec2-user/ApiRegProv || (git clone https://github.com/be-camacho/ApiRegProv.git /home/ec2-user/ApiRegProv && cd $_)
-    git reset --hard HEAD
-    git clean -fd
-    git pull origin main
+name: Deploy to EC2
+on:
+  push:
+    branches: [ "main" ]
 
-    # 2. Crear .env usando SECRETS
-    cat > .env << EOF
-    DB_NAME=${{ secrets.DB_NAME }}
-    DB_USER=${{ secrets.DB_USER }}
-    DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-    DB_HOST=${{ secrets.DB_HOST }}
-    DB_PORT=${{ secrets.DB_PORT }}
-    EOF
-    chmod 600 .env
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # ... otros pasos previos
 
-    # 3. Docker commands
-    sudo docker stop apiprovs_container || true
-    sudo docker rm -f apiprovs_container || true
-    sudo docker rmi -f apiprovs || true
-    sudo docker build --no-cache -t apiprovs .
-    sudo docker run -d --name apiprovs_container --restart unless-stopped -p 80:8000 --env-file .env apiprovs
+      - name: Connect to EC2 and deploy
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+              -p "${{ secrets.EC2_PORT || 22 }}" \
+              "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
+              /bin/bash << 'EOSSH'
+              # Comandos dentro del servidor
+              cd /home/ec2-user/ApiRegProv
+              git pull origin main
+
+              # Crear .env
+              cat > .env << EOF
+              DB_NAME=${{ secrets.DB_NAME }}
+              DB_USER=${{ secrets.DB_USER }}
+              DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+              DB_HOST=${{ secrets.DB_HOST }}
+              DB_PORT=${{ secrets.DB_PORT }}
+              EOF
+              chmod 600 .env
+              # ... resto de comandos
 EOSSH
+        env:  # ✅ Bloque CORRECTO (fuera del 'run'!)
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_PORT: ${{ secrets.DB_PORT }}
