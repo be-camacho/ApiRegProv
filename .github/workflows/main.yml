@@ -25,14 +25,7 @@ jobs:
           git pull origin main
           
           # 2. Crear archivo .env (ÚNICO CAMBIO REALIZADO)
-          cat > .env << 'EOF'
-DB_NAME=$DB_NAME
-DB_USER=$DB_USER
-DB_PASSWORD=$DB_PASSWORD
-DB_HOST=$DB_HOST
-DB_PORT=$DB_PORT
-EOF
-          
+          echo -e 'DB_NAME=$DB_NAME\nDB_USER=$DB_USER\nDB_PASSWORD=$DB_PASSWORD\nDB_HOST=$DB_HOST\nDB_PORT=$DB_PORT' > .env
           chmod 600 .env
           
           # 3. Docker commands (igual que antes)
