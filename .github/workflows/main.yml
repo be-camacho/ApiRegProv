@@ -44,6 +44,7 @@ jobs:
             --name apiprovs_container \
             --restart unless-stopped \
             -p 80:8000 \
+            -p 443:8000 \
             --env-file .env \
             apiprovs
           
