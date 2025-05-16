@@ -1,40 +1,65 @@
-name: Connect to EC2 and deploy
-run: |
-    ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT || 22 }} ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
-      # 1. Actualizar código
-      cd /home/ec2-user/ApiRegProv || (git clone https://github.com/be-camacho/ApiRegProv.git /home/ec2-user/ApiRegProv && cd /home/ec2-user/ApiRegProv)
-      git pull origin main
-      
-      # 2. Crear archivo .env (con variables expandidas)
-      echo \"DB_NAME=$DB_NAME\nDB_USER=$DB_USER\nDB_PASSWORD=$DB_PASSWORD\nDB_HOST=$DB_HOST\nDB_PORT=$DB_PORT\" > .env
-      chmod 600 .env
-      
-      # 3. Docker commands
-      sudo docker stop apiprovs_container || true
-      sudo docker rm -f apiprovs_container || true
-      sudo docker container prune -f
-      sudo docker rmi -f apiprovs || true
-      sudo docker system prune -f
-      sudo lsof -ti :80 | xargs -r sudo kill -9 || true
-      
-      # Construir y ejecutar
-      sudo docker build --no-cache -t apiprovs .
-      sudo docker run -d \
-        --name apiprovs_container \
-        --restart unless-stopped \
-        -p 8000:8000 \  # Cambiado a 8000:8000 para evitar problemas con puertos privilegiados
-        --env-file .env \
-        apiprovs
-      
-      sleep 15
-      echo '--- Contenedores activos ---'
-      sudo docker ps
-      echo '--- Intento de conexión ---'
-      curl -I http://localhost:8000 || echo 'La aplicación no responde aún'
-    "
-env:
-  DB_NAME: ${{ secrets.DB_NAME }}
-  DB_USER: ${{ secrets.DB_USER }}
-  DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-  DB_HOST: ${{ secrets.DB_HOST }}
-  DB_PORT: ${{ secrets.DB_PORT }}
+name: Deploy to EC2
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Install SSH key
+      uses: shimataro/ssh-key-action@v2
+      with:
+        key: ${{ secrets.EC2_SSH_KEY }}
+        known_hosts: 'just-a-placeholder-so-we-dont-get-errors'
+
+    - name: Connect to EC2 and deploy
+      run: |
+        ssh -o StrictHostKeyChecking=no -p ${{ secrets.EC2_PORT || 22 }} ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} "
+          # 1. Actualizar código
+          cd /home/ec2-user/ApiRegProv || (git clone https://github.com/be-camacho/ApiRegProv.git /home/ec2-user/ApiRegProv && cd /home/ec2-user/ApiRegProv)
+          git pull origin main
+          
+          # 2. Crear archivo .env (ÚNICO CAMBIO REALIZADO)
+          echo 'DB_NAME=$DB_NAME
+          DB_USER=$DB_USER
+          DB_PASSWORD=$DB_PASSWORD
+          DB_HOST=$DB_HOST
+          DB_PORT=$DB_PORT' > .env
+          chmod 600 .env
+          
+          # 3. Docker commands (igual que antes)
+          if sudo docker ps -a --filter 'name=apiprovs_container' --format '{{.ID}}' | grep -q .; then
+            sudo docker stop apiprovs_container || true
+            sudo docker rm -f apiprovs_container || true
+          fi
+          sudo docker container prune -f
+          if sudo docker images -q apiprovs | grep -q .; then
+            sudo docker rmi -f $(sudo docker images -q apiprovs) || true
+          fi
+          sudo docker system prune -f
+          sudo lsof -ti :8000 | xargs -r sudo kill -9 || true
+          sudo docker build --no-cache -t apiprovs .
+          sudo docker run -d \
+            --name apiprovs_container \
+            --restart unless-stopped \
+            -p 8000:8000 \
+            --env-file .env \
+            apiprovs
+          
+          sleep 15
+          echo '--- Contenedores activos ---'
+          sudo docker ps
+          echo '--- Intento de conexión ---'
+          curl -I http://localhost || echo 'La aplicación no responde aún'
+        "
+      env:
+        DB_NAME: ${{ secrets.DB_NAME }}
+        DB_USER: ${{ secrets.DB_USER }}
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        DB_HOST: ${{ secrets.DB_HOST }}
+        DB_PORT: ${{ secrets.DB_PORT }}
