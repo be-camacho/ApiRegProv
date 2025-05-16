@@ -43,7 +43,7 @@ jobs:
           sudo docker run -d \
             --name apiprovs_container \
             --restart unless-stopped \
-            -p 8000:8000 \
+            -p 80:8000 \
             --env-file .env \
             apiprovs
           
