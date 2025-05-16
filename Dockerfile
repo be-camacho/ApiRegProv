@@ -11,4 +11,4 @@ RUN pip install --upgrade pip && pip install -r requerimientos.txt
 COPY . .
 RUN cd /app
 EXPOSE 8000
-CMD [ "python","manage.py","runserver", "0.0.0.0:8000" ]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "APIREGPROV.config.wsgi:application"]
