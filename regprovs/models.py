@@ -30,3 +30,12 @@ class Marca (models.Model):
 class Tipo(models.Model):
     id_tipo = models.AutoField(primary_key=True)
     nombre_tipo = models.CharField(max_length=100)
+
+class User(models.Model):
+    username = models.CharField(max_length=100, unique=True)
+    password = models.CharField(max_length=128)  
+    rol = models.CharField(max_length=1) 
+    idproveedor = models.IntegerField(null=True, blank=True)
+
+    def __str__(self):
+        return self.username
