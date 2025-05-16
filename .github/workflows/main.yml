@@ -38,7 +38,7 @@ jobs:
             sudo docker rmi -f $(sudo docker images -q apiprovs) || true
           fi
           sudo docker system prune -f
-          sudo lsof -ti :8000 | xargs -r sudo kill -9 || true
+          sudo lsof -ti :80 | xargs -r sudo kill -9 || true
           sudo docker build --no-cache -t apiprovs .
           sudo docker run -d \
             --name apiprovs_container \
