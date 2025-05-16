@@ -29,7 +29,7 @@ SECRET_KEY = 'django-insecure-2!&04ly-fdv1yk7=l8yo-2vag$i_q(3$(6owq=yh5nrfg77l)%
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['34.194.212.252','localhost',]
+ALLOWED_HOSTS = ['34.194.212.252','localhost']
 
 
 # Application definition
@@ -142,7 +142,3 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.MultiPartParser',
     ],
 }
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-SECURE_SSL_REDIRECT = True  # Redirige HTTP → HTTPS
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True

@@ -7,4 +7,4 @@ class RegprovsConfig(AppConfig):
     name = 'regprovs'
 
     def ready(self):
-        from .import signals
+        from . import signals
