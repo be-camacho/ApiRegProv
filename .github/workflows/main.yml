@@ -25,7 +25,7 @@ jobs:
           git pull origin main
           
           # 2. Crear archivo .env (ÚNICO CAMBIO REALIZADO)
-          echo -e 'DB_NAME=$DB_NAME\nDB_USER=$DB_USER\nDB_PASSWORD=$DB_PASSWORD\nDB_HOST=$DB_HOST\nDB_PORT=$DB_PORT' > .env
+          echo -e 'DB_NAME=$DB_NAME\nDB_USER=$DB_USER\nDB_PASSWORD=$DB_PASSWORD\nDB_HOST=$DB_HOST\nDB_PORT=$DB_PORT\nMJ_APIKEY_PUBLIC=$MJ_APIKEY_PUBLIC\nMJ_APIKEY_PRIVATE=$MJ_APIKEY_PRIVATE' > .env
           chmod 600 .env
           
           # 3. Docker commands (igual que antes)
@@ -60,3 +60,5 @@ jobs:
         DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         DB_HOST: ${{ secrets.DB_HOST }}
         DB_PORT: ${{ secrets.DB_PORT }}
+        MJ_APIKEY_PUBLIC: ${{ secrets.MJ_APIKEY_PUBLIC }}
+        MJ_APIKEY_PRIVATE: ${{ secrets.MJ_APIKEY_PRIVATE }}

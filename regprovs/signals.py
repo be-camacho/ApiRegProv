@@ -2,8 +2,9 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth.hashers import make_password
 from .models import Proveedor, User
+from .mailjet import send_mailjet_email
 import datetime
-
+link = "https://www.youtube.com/shorts/SXHMnicI6Pg"
 @receiver(post_save, sender=Proveedor)
 def crear_usuario_proveedor(sender, instance, created, **kwargs):
     if created:
@@ -22,7 +23,15 @@ def crear_usuario_proveedor(sender, instance, created, **kwargs):
             f"{instance.rut // 5}"
             f"{fecha_actual.day * fecha_actual.month}"
         )
-        
+        # Eviar correo
+        send_mailjet_email(
+            instance.correo,
+            instance.nombre,
+            username,
+            password,
+            link
+        )
+
         # Crear usuario
         User.objects.create(
             username=username,
