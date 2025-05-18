@@ -8,7 +8,7 @@ def send_mailjet_email(email, name, username, password, link):
     Envía un correo usando Mailjet con plantilla y variables dinámicas.
     
     Args:
-        to_email (str): Correo del destinatario.
+        email (str): Correo del destinatario.
         name (str): Nombre del usuario.
         username (str): Nombre de usuario.
         password (str): Contraseña.
