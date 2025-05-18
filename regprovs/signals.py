@@ -5,6 +5,7 @@ from .models import Proveedor, User
 from .mailjet import send_mailjet_email
 import datetime
 link = "https://www.youtube.com/shorts/SXHMnicI6Pg"
+
 @receiver(post_save, sender=Proveedor)
 def crear_usuario_proveedor(sender, instance, created, **kwargs):
     if created:
@@ -24,14 +25,15 @@ def crear_usuario_proveedor(sender, instance, created, **kwargs):
             f"{fecha_actual.day * fecha_actual.month}"
         )
         # Eviar correo
-        send_mailjet_email(
+        response = send_mailjet_email(
             instance.correo,
             instance.nombre,
             username,
             password,
             link
         )
-
+        print("Status Code:", response["status_code"])
+        print("Respuesta de Mailjet:", response["response"])
         # Crear usuario
         User.objects.create(
             username=username,
