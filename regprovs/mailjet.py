@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-def send_mailjet_email(to_email, name, username, password, link):
+def send_mailjet_email(email, name, username, password, link):
     """
     Envía un correo usando Mailjet con plantilla y variables dinámicas.
     
@@ -27,7 +27,7 @@ def send_mailjet_email(to_email, name, username, password, link):
                 },
                 "To": [
                     {
-                        "Email": "beig.techsolutions@gmail.com"
+                        "Email": email
                     }
                 ],
                 "TemplateID": 6993866,
