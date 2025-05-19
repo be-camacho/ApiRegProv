@@ -51,7 +51,7 @@ jobs:
           echo '--- Contenedores activos ---'
           sudo docker ps
           echo '--- Intento de conexión ---'
-          curl -I http://localhost || echo 'La aplicación no responde aún'
+          curl -I http://${{ secrets.EC2_HOST }} || echo 'La aplicación no responde aún'
         "
       env:
         DB_NAME: ${{ secrets.DB_NAME }}
